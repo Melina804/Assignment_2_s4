@@ -144,10 +144,10 @@ posterior_kri <- unstd.posterior_kri / sum(unstd.posterior_kri)
 posterior_jos <- unstd.posterior_jos / sum(unstd.posterior_jos)
 posterior_mik <- unstd.posterior_mik / sum(unstd.posterior_mik)
 
-d_ric <- data.frame(teacher = "riccardo", grid = p_grid, posterior = posterior_ric, prior = prior3, likelihood = likelihood_riccardo)
-d_kri <- data.frame(teacher = "kristian", grid = p_grid, posterior = posterior_kri, prior = prior3, likelihood = likelihood_kristian)
-d_jos <- data.frame(teacher = "josh", grid = p_grid, posterior = posterior_jos, prior = prior3, likelihood = likelihood_josh)
-d_mik <- data.frame(teacher = "mikkel", grid = p_grid, posterior = posterior_mik, prior = prior3, likelihood = likelihood_mikkel)
+d_ric <- data.frame(teacher = "riccardo", grid = p_grid, posterior = posterior_ric, prior = prior_3, likelihood = likelihood_riccardo)
+d_kri <- data.frame(teacher = "kristian", grid = p_grid, posterior = posterior_kri, prior = prior_3, likelihood = likelihood_kristian)
+d_jos <- data.frame(teacher = "josh", grid = p_grid, posterior = posterior_jos, prior = prior_3, likelihood = likelihood_josh)
+d_mik <- data.frame(teacher = "mikkel", grid = p_grid, posterior = posterior_mik, prior = prior_3, likelihood = likelihood_mikkel)
 d <- rbind(d_ric,d_kri)
 dd <- rbind(d_jos,d_mik)
 d <- rbind(d,dd)
@@ -335,7 +335,46 @@ Last year you assessed the teachers (darned time runs quick!). Now you want to r
 
 Questions to be answered (but see guidance below):
 1- Write a paragraph discussing how assessment of prediction performance is different in Bayesian vs. frequentist models
+
+Bayesian = In order to asses the prediction performace we do sampling on the posterior to get the predictive posterior. 
+In bayes the goal is to asses exacly how the models fails to describe the data, with the aim of impoving the model. Bayesian models always test on simulations and not on actual data.  
+
+
+Frequentisit = cross validation. We start by finding the best preictors, that best explain the data and train a model on a part of the data. Once we have trained our model and is satisfied with the prediction outcome we test the model on the rest of the data, to see how good our model actually is at predicting the data. 
+In frequentist stats the goal is to figure out whether the model was correct or not (being significant)
+
+
 2- Provide at least one plot and one written line discussing prediction errors for each of the teachers.
+```{r}
+Samples_ric <- sample(p_grid, prob = posterior_ric, size = 1e4, replace = TRUE)
+ric <- rbinom(1e4, size=10,prob = Samples_ric)
+simplehist(ric)
+
+# There is a prediction error. In the new data he answers 9/10 questions correct. However, the precitive posterior tells us that there is a highter probability that he should have answered only 7 questions correct. He performs better than the model predicts.
+
+
+Samples_kri <- sample(p_grid, prob = posterior_kri, size = 1e4, replace = TRUE)
+kri <- rbinom(1e4, size=12,prob = Samples_kri)
+simplehist(kri)
+
+# There is a bigger prediction error for Kristian than for Riccardo. The models predits that it is post proabable that we answered all 12 questions correct. However, he only answered 8 questions correct. 
+
+
+Samples_jos <- sample(p_grid, prob = posterior_jos, size = 1e4, replace = TRUE)
+jos <- rbinom(1e4, size=172,prob = Samples_jos)
+simplehist(jos)
+
+# There is also a big prediction error for Josh, the model estimates that it is most proable that he answers aprox. 136 questions correct. However, he actually answered 148 questions correct, indicating that the model underestimated his knowlegde of CogSci. 
+
+
+Samples_mik <- sample(p_grid, prob = posterior_mik, size = 1e4, replace = TRUE)
+mik <- rbinom(1e4, size=65,prob = Samples_mik)
+simplehist(mik)
+
+# There is no preidctin error for Mikkel, the model perfectly predicted the amount of correct answered for Mikkel. 
+
+```
+
 
 This is the old data:
 - Riccardo: 3 correct answers out of 6 questions
