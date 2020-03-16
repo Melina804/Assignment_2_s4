@@ -7,8 +7,14 @@ output: html_document
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
-library(rethinking)
-library(ggplot2)
+library(pacman)
+p_load(ggplot2, rethinking, patchwork, tidyverse)
+p_load(brms)
+
+#pacman::p_load(pacman, 
+               #tidyverse, 
+               #rethinking,
+               #patchwork)
 ```
 
 ## In this assignment we learn how to assess rates from a binomial distribution, using the case of assessing your teachers' knowledge of CogSci
@@ -39,11 +45,72 @@ Questions:
 - Then implement a quadratic approximation (hint check paragraph 2.4.2!).
 - N.B. for the rest of the exercise just keep using the grid approximation (we'll move to quadratic approximations in two classes)
 
+
+Chuck added after feedback
+```{r}
+# Function to make plot 
+
+pretty_plot <- function(p_grid, prior, likelihood, posterior, title = " "){
+  # define data
+  d <- tibble(p_grid = p_grid, 
+              prior = prior, 
+              likelihood = likelihood,
+              posterior = posterior)
+  
+  # make to long format
+  d <- d %>% 
+    pivot_longer(cols = c("prior", "likelihood", "posterior"), names_to = "probabilities", values_to = "value")
+  
+  # make a 
+  p <- ggplot(d, aes(x = p_grid, y = value, color = probabilities)) + 
+    geom_line() + 
+    labs(x = "Knowledge of CogSci", y = "Density", title = title) + 
+    theme_bw() + 
+    ggplot2::theme(panel.background = element_rect(fill = "white"),
+                   panel.border = element_blank()) +
+    scale_color_manual(values = c("hotpink4","khaki3","lightpink2"))
+  return(p)
+}
+
+# Define the grid
+dens <- 10000 #Use 10.000
+p_grid <- seq(from = 0, to = 1, length.out = dens)
+bin_size <- abs(p_grid[1] - p_grid[2])
+
+# Define the prior
+prior <- rep(1, dens) # flat
+#prior <- ifelse(p_grid < 0.5, 0,1) # optimistic
+#prior <- dnorm(p_grid, 0.5,0.1) # centered at chance
+
+# Test the prior
+dens(rbinom(1e4, 6, runif(1e4, 0,1))) #The x asis is the question answered, and with a uniform prior, there is equal probability, that he will answer 0,1,2,3,4,5 or all 6 questions correct
+# dens(rbinom(1e4, 9, runif(1e4, 0.5, 1))) ## ASK WHAT THIS MEANS
+# dens(rbinom(1e4, 9, rnorm(1e4, 0.5, 0.1)))
+
+# Compute the likelihood
+likelihood <- dbinom(3 ,size = 6, prob = p_grid)
+
+# Compute the posterior
+unstd.posterior <- likelihood*prior
+
+# Standardize the posterior (so it sums up to 1)
+posterior <- unstd.posterior / sum(unstd.posterior*bin_size)
+
+# Pretty plot for Riccardo
+pretty_plot(p_grid = p_grid, 
+            prior = prior, 
+            likelihood = likelihood, 
+            posterior = posterior, title = "Riccardo")
+
+```
+
+
+
 ```{r}
 
 ## RICCARDO
 #Define the grid
-dens <- 20
+dens <- 10000
 p_grid <- seq(from = 0 , to = 1 , length.out = dens)
 
 #Define the prior
@@ -88,6 +155,8 @@ sum(posterior[p_grid > 0.5])
 2. Estimate all the teachers' knowledge of CogSci. Who's best? Use grid approximation. Comment on the posteriors of Riccardo and Mikkel.
 2a. Produce plots of the prior, and posterior for each teacher.
 
+
+
 ```{r}
 
 # Compute the likelihood
@@ -118,11 +187,73 @@ d <- rbind(d_ric,d_kri)
 dd <- rbind(d_jos,d_mik)
 d <- rbind(d,dd)
 
-ggplot(d, aes(grid,posterior, color=teacher)) + geom_point() + geom_line()+theme_classic()+geom_line(aes(grid, prior/dens),color= 'red')+xlab("Knowledge of CogSci")+ylab("Posterior probability")+facet_wrap(.~teacher) + theme_minimal()
+ggplot(d, aes(grid,posterior, color=teacher)) + geom_point() + geom_line()+theme_classic()+geom_line(aes(grid, prior/dens),color= 'red')+xlab("Knowledge of CogSci")+facet_wrap(.~teacher) + theme_minimal()
 
 # Josh is the best, he knows the most about CogSci.There is 60% probability that he will answer aproximatly 80% of the questions correct 
 # Josh and Mikkels plots look alike with a certainty around 50% correct answers, however we have a more secure posterior for Mikkel, there is a 40% probability for Mikkel and a 12% probability for Riccardo. It is better at predicting for Mikkel than for Riccardo
 ```
+
+Chunck added after feedback
+
+```{r}
+# Pretty plots for all of the teachers 
+p_ric <- pretty_plot(p_grid = p_grid, 
+            prior = prior, 
+            likelihood = likelihood_riccardo, 
+            posterior = posterior_ric, title = "Riccardo")
+
+p_kri <- pretty_plot(p_grid = p_grid, 
+            prior = prior, 
+            likelihood = likelihood_kristian, 
+            posterior = posterior_kri, title = "Kristian")
+
+p_jos <- pretty_plot(p_grid = p_grid, 
+            prior = prior, 
+            likelihood = likelihood_josh, 
+            posterior = posterior_jos, title = "Josh")
+
+p_mik <- pretty_plot(p_grid = p_grid, 
+            prior = prior, 
+            likelihood = likelihood_mikkel, 
+            posterior = posterior_mik, title = "Mikkel")
+
+#Patchwork, making one coherent plot of all the pretty plots
+(p_ric + ggtitle("Riccardo")) + (p_kri + ggtitle("Kristian")) + (p_jos + ggtitle("Josh")) + (p_mik + ggtitle("Mikkel"))
+
+
+# Calculating the SD for all teachers
+
+# RICCARDO
+pos_ric <- posterior_ric
+
+sam_ric <- sample(size = 100000, x = p_grid, prob = pos_ric, replace = T)
+mean(sam_ric) # 0.5
+sd(sam_ric) # 0.17
+
+
+# MIKKEL
+pos_mik <- posterior_mik
+
+sam_mik <- sample(size = 100000, x = p_grid, prob = pos_mik, replace = T)
+mean(sam_mik) # 0.5
+sd(sam_mik) #0.04
+
+# JOSH
+pos_jos <- posterior_jos
+
+sam_jos <- sample(size = 100000, x = p_grid, prob = pos_jos, replace = T)
+mean(sam_jos) # 0.8
+sd(sam_jos) #0.03
+
+# KRISTIAN
+pos_kri <- posterior_kri
+
+sam_kri <- sample(size = 100000, x = p_grid, prob = pos_kri, replace = T)
+mean(sam_kri) # 0.75
+sd(sam_kri) #0.19
+
+```
+
 
 
 3. Change the prior. Given your teachers have all CogSci jobs, you should start with a higher appreciation of their knowledge: the prior is a normal distribution with a mean of 0.8 and a standard deviation of 0.2. Do the results change (and if so how)?
@@ -167,6 +298,62 @@ ggplot(d, aes(grid,posterior, color=teacher)) + geom_point() + geom_line()+theme
 # Aprox. nothing changes for Josh. This is proabably due to the amount of questions answered, and the amount of correct answers. 
 ```
 
+Code chunck added after feedback
+```{r}
+# Making pretty plots for all of the teachers 
+p_ric_ip <- pretty_plot(p_grid = p_grid, 
+            prior = prior_3, 
+            likelihood = likelihood_riccardo, 
+            posterior = posterior_ric, title = "Riccardo")
+
+p_kri_ip <- pretty_plot(p_grid = p_grid, 
+            prior = prior_3, 
+            likelihood = likelihood_kristian, 
+            posterior = posterior_kri, title = "Kristian")
+
+p_jos_ip <- pretty_plot(p_grid = p_grid, 
+            prior = prior_3, 
+            likelihood = likelihood_josh, 
+            posterior = posterior_jos, title = "Josh")
+
+p_mik_ip <- pretty_plot(p_grid = p_grid, 
+            prior = prior_3, 
+            likelihood = likelihood_mikkel, 
+            posterior = posterior_mik, title = "Mikkel")
+
+#Patchwork, making one coherent plot of all the pretty plots
+(p_ric_ip + ggtitle("Riccardo")) + (p_kri_ip + ggtitle("Kristian")) + (p_jos_ip + ggtitle("Josh")) + (p_mik_ip + ggtitle("Mikkel"))
+
+
+#The standard deviations of the teachers with an informed prior
+
+pos_ric_ip <- posterior_ric
+
+sam_ric_ip <- sample(size = 10000, x = p_grid, prob = pos_ric_ip, replace = T)
+mean(sam_ric_ip)
+sd(sam_ric_ip)
+
+pos_kri_ip <- posterior_kri
+
+sam_kri_ip <- sample(size = 10000, x = p_grid, prob = pos_kri_ip, replace = T)
+mean(sam_kri_ip)
+sd(sam_kri_ip)
+
+pos_jos_ip <- posterior_jos
+
+sam_jos_ip <- sample(size = 10000, x = p_grid, prob = pos_jos_ip, replace = T)
+mean(sam_jos_ip)
+sd(sam_jos_ip)
+
+pos_mik_ip <- posterior_mik
+
+sam_mik_ip <- sample(size = 10000, x = p_grid, prob = pos_mik, replace = T)
+mean(sam_mik_ip)
+sd(sam_mik_ip)
+```
+
+
+
 
 4. You go back to your teachers and collect more data (multiply the previous numbers by 100). Calculate their knowledge with both a uniform prior and a normal prior with a mean of 0.8 and a standard deviation of 0.2. Do you still see a difference between the results? Why?
 ```{r}
@@ -208,6 +395,8 @@ ggplot(d_4, aes(grid,posterior, color=teacher)) + geom_point() + geom_line()+the
 # Calculating knowledgde with more answers and a prior with a normal distribution of 0.8 with an SD of 0.2
 prior_4.1 <- dnorm(p_grid, 0.8, 0.2)
 
+plot(prior_4.1)
+
 # Compute the likelihood
 likelihood_riccardo_4.1 <- dbinom(300 ,size = 600, prob = p_grid)
 likelihood_kristian_4.1 <- dbinom(200 ,size = 200, prob = p_grid)
@@ -229,13 +418,19 @@ posterior_mik_4.1 <- unstd.posterior_mik_4.1 / sum(unstd.posterior_mik_4.1)
 # Plot the posterior and prior 
 # Plots
 d_ric_4.1 <- data.frame(teacher = "riccardo", grid = p_grid, posterior = posterior_ric_4.1, prior = prior_4.1, likelihood = likelihood_riccardo_4.1)
+
 d_kri_4.1 <- data.frame(teacher = "kristian", grid = p_grid, posterior = posterior_kri_4.1, prior = prior_4.1, likelihood = likelihood_kristian_4.1)
+
 d_jos_4.1 <- data.frame(teacher = "josh", grid = p_grid, posterior = posterior_jos_4.1, prior = prior_4.1, likelihood = likelihood_josh_4.1)
+
 d_mik_4.1 <- data.frame(teacher = "mikkel", grid = p_grid, posterior = posterior_mik_4.1, prior = prior_4.1, likelihood = likelihood_mikkel_4.1)
+
 d_4.1 <- rbind(d_ric_4.1,d_kri_4.1)
 dd_4.1 <- rbind(d_jos_4.1,d_mik_4.1)
 d_4.1 <- rbind(d_4.1,dd_4.1)
 
+
+ggplot(d_ric_4.1, aes(grid,posterior, color=teacher)) + geom_point() + geom_line()+theme_classic()+geom_line(aes(grid, prior/dens),color= 'red')+xlab("Knowledge of CogSci")+ylab("Posterior probability")+facet_wrap(.~teacher) + theme_minimal()
 
 ggplot(d_4.1, aes(grid,posterior, color=teacher)) + geom_point() + geom_line()+theme_classic()+geom_line(aes(grid, prior/dens),color= 'red')+xlab("Knowledge of CogSci")+ylab("Posterior probability")+facet_wrap(.~teacher) + theme_minimal()
 
@@ -246,6 +441,125 @@ ggplot(d_4.1, aes(grid,posterior, color=teacher)) + geom_point() + geom_line()+t
 # The amount of questions chnage the model because we now have more information, making the model better able to make predictions. 
 # Changing the prior changes the probabilities, beacuse the model is now feed more information, and it is therefore, better able to make correct predictions. There is no difference for Kristian because he answers 100% correct, we see no difference for Josh because he already answerd a lot of questions before multipling with 100, when we reach a certain point, more data will not make that big of a differece. Moreover, the distribution of his answer fits with the normally distributed prior. 
 ```
+
+```{r}
+# Plots
+#this is the plots we are using in the assignment
+p_ric_up2 <- pretty_plot(p_grid = p_grid4, 
+            prior = prior, 
+            likelihood = likelihood_riccardo4, 
+            posterior = posterior_ric4, title = "Riccardo")
+
+p_kri_up2 <- pretty_plot(p_grid = p_grid4, 
+            prior = prior, 
+            likelihood = likelihood_kristian4, 
+            posterior = posterior_kri4, title = "Kristian")
+
+p_jos_up2 <- pretty_plot(p_grid = p_grid4, 
+            prior = prior, 
+            likelihood = likelihood_josh4, 
+            posterior = posterior_jos4, title = "Josh")
+
+p_mik_up2 <- pretty_plot(p_grid = p_grid4, 
+            prior = prior, 
+            likelihood = likelihood_mikkel4, 
+            posterior = posterior_mik4, title = "Mikkel")
+
+#Patchwork, making one coherent plot of all the pretty plots
+(p_ric_up2 + ggtitle("Riccardo")) + (p_kri_up2 + ggtitle("Kristian")) + (p_jos_up2 + ggtitle("Josh")) + (p_mik_up2 + ggtitle("Mikkel"))
+
+#The standard deviations of the teachers with an uniformed prior
+
+pos_ric_up2 <- posterior_ric4
+
+sam_ric_up2 <- sample(size = 10000, x = p_grid, prob = pos_ric_up2, replace = T)
+mean(sam_ric_up2)
+sd(sam_ric_up2)
+
+pos_kri_up2 <- posterior_kri4
+
+sam_kri_up2 <- sample(size = 10000, x = p_grid, prob = pos_kri_up2, replace = T)
+mean(sam_kri_up2)
+sd(sam_kri_up2)
+
+pos_jos_up2 <- posterior_jos4
+
+sam_jos_up2 <- sample(size = 10000, x = p_grid, prob = pos_jos_up2, replace = T)
+mean(sam_jos_up2)
+sd(sam_jos_up2)
+
+pos_mik_up2 <- posterior_mik4
+
+sam_mik_up2 <- sample(size = 10000, x = p_grid, prob = pos_mik_up2, replace = T)
+mean(sam_mik_up2)
+sd(sam_mik_up2)
+
+#The data run with the informed prior
+
+# Compute the posterior
+unstd.posterior_ric5 <- likelihood_riccardo4*prior3
+unstd.posterior_kri5 <- likelihood_kristian4*prior3
+unstd.posterior_jos5 <- likelihood_josh4*prior3
+unstd.posterior_mik5 <- likelihood_mikkel4*prior3
+
+# Standardize the posterior (so it sums up to 1)
+posterior_ric5 <- unstd.posterior_ric5 / sum(unstd.posterior_ric5*bin_size)
+posterior_kri5 <- unstd.posterior_kri5 / sum(unstd.posterior_kri5*bin_size)
+posterior_jos5 <- unstd.posterior_jos5 / sum(unstd.posterior_jos5*bin_size)
+posterior_mik5 <- unstd.posterior_mik5 / sum(unstd.posterior_mik5*bin_size)
+
+# Plots
+p_ric_ip2 <- pretty_plot(p_grid = p_grid4, 
+            prior = prior3, 
+            likelihood = likelihood_riccardo4, 
+            posterior = posterior_ric5, title = "Riccardo")
+
+p_kri_ip2 <- pretty_plot(p_grid = p_grid4, 
+            prior = prior3, 
+            likelihood = likelihood_kristian4, 
+            posterior = posterior_kri5, title = "Kristian")
+
+p_jos_ip2 <- pretty_plot(p_grid = p_grid4, 
+            prior = prior3, 
+            likelihood = likelihood_josh4, 
+            posterior = posterior_jos5, title = "Josh")
+
+p_mik_ip2 <- pretty_plot(p_grid = p_grid4, 
+            prior = prior3, 
+            likelihood = likelihood_mikkel4, 
+            posterior = posterior_mik5, title = "Mikkel")
+
+#Patchwork, making one coherent plot of all the pretty plots
+(p_ric_ip2 + ggtitle("Riccardo")) + (p_kri_ip2 + ggtitle("Kristian")) + (p_jos_ip2 + ggtitle("Josh")) + (p_mik_ip2 + ggtitle("Mikkel"))
+
+#The standard deviations of the teachers with an uniformed prior
+
+pos_ric_ip2 <- posterior_ric5
+
+sam_ric_ip2 <- sample(size = 10000, x = p_grid, prob = pos_ric_ip2, replace = T)
+mean(sam_ric_ip2)
+sd(sam_ric_ip2)
+
+pos_kri_ip2 <- posterior_kri5
+
+sam_kri_ip2 <- sample(size = 10000, x = p_grid, prob = pos_kri_up2, replace = T)
+mean(sam_kri_ip2)
+sd(sam_kri_ip2)
+
+pos_jos_ip2 <- posterior_jos5
+
+sam_jos_ip2 <- sample(size = 10000, x = p_grid, prob = pos_jos_up2, replace = T)
+mean(sam_jos_ip2)
+sd(sam_jos_ip2)
+
+pos_mik_ip2 <- posterior_mik5
+
+sam_mik_ip2 <- sample(size = 10000, x = p_grid, prob = pos_mik_up2, replace = T)
+mean(sam_mik_ip2)
+sd(sam_mik_ip2)
+
+```
+
 
 
 5. Imagine you're a skeptic and think your teachers do not know anything about CogSci, given the content of their classes. How would you operationalize that belief?
@@ -353,6 +667,7 @@ simplehist(ric)
 # There is a prediction error. In the new data he answers 9/10 questions correct. However, the precitive posterior tells us that there is a highter probability that he should have answered only 7 questions correct. He performs better than the model predicts.
 
 
+
 Samples_kri <- sample(p_grid, prob = posterior_kri, size = 1e4, replace = TRUE)
 kri <- rbinom(1e4, size=12,prob = Samples_kri)
 simplehist(kri)
@@ -372,6 +687,41 @@ mik <- rbinom(1e4, size=65,prob = Samples_mik)
 simplehist(mik)
 
 # There is no preidctin error for Mikkel, the model perfectly predicted the amount of correct answered for Mikkel. 
+
+#Here we find 4 % of the questions to get an error margin in the histograms below
+#Riccardo
+10*0.04
+
+#Kristian
+12*0.4
+
+#Mikkel
+65*0.04
+
+#Josh
+172*0.04
+
+#Here find the correct number +/- 4 % for each of the teacher
+sum(ric >= 9-1 & ric <= 9+1)/10000 #how is between 9 +/- 1 = 28.26%
+sum(mik >= 34-3 & mik <= 34+3)/10000 #how is between 34 +/- 3 = 52.06%
+sum(kri >= 8-1 & kri <= 8+1)/10000 #how is between 8 +/- 1 = 32.59%
+sum(jos >= 148-7 & jos <= 148+7)/10000 #how is between 148 +/- 7 = 38.51%
+
+#Other ways to ask questions about the number of correct answeres, however, we are not using it in our portoflio, but saving it so we can go back and look at it if needed
+
+#sum(jos == 148)/10000 #How many was 148 out of the entire simulation (10.000)
+#There is a 2,78 % chance that he would get 148 correct
+
+#How to answer how likely is it that josh gets at least 148 questions correct
+#sum(jos >= 148)/10000 # 10.86 %
+
+hist(ric-9, xlab = "Prediction error") #Difference between model prediction and the actual observed results
+
+hist(kri-8, xlab = "Prediction error") 
+
+hist(mik-34, xlab = "Prediction error")
+
+hist(jos-148, xlab = "Prediction error")
 
 ```
 
